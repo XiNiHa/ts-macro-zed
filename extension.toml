@@ -1,0 +1,16 @@
+id = "ts-macro"
+name = "TS Macro"
+description = "TS Macro support for Zed"
+version = "0.0.0"
+schema_version = 1
+authors = ["XiNiHa <me@xiniha.dev>"]
+repository = "https://github.com/XiNiHa/ts-macro-zed"
+
+[language_servers.ts-macro]
+name = "TS Macro Language Server"
+language = "TS Macro"
+languages = ["TypeScript", "TSX"]
+
+[language_servers.ts-macro.language_ids]
+"TypeScript" = "typescript"
+"TSX" = "typescriptreact"
