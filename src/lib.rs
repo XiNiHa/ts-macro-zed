@@ -40,7 +40,8 @@ impl TsmExtension {
         worktree: &zed::Worktree,
     ) -> Result<String> {
         let server_exists = self.server_exists();
-        if self.did_find_server && server_exists {
+
+        if !self.did_find_server && server_exists {
             self.install_typescript_if_needed(worktree)?;
             self.install_ts_plugin_if_needed()?;
             return Ok(SERVER_PATH.to_string());
@@ -77,7 +78,6 @@ impl TsmExtension {
             }
         }
 
-        self.install_typescript_if_needed(worktree)?;
         self.did_find_server = true;
         Ok(SERVER_PATH.to_string())
     }
@@ -139,9 +139,21 @@ impl TsmExtension {
         Ok(())
     }
 
+    // Workaround: Prevent early error return when package.json does not exist, and correct the global path to the proper location
+    // See: https://github.com/yioneko/vtsls#typescript-plugin-not-activated
     fn get_ts_plugin_root_path(&self, worktree: &zed::Worktree) -> Result<Option<String>> {
-        let package_json = worktree.read_text_file("package.json")?;
-        let package_json: PackageJson = serde_json::from_str(&package_json)
+        let package_json_content = match worktree.read_text_file("package.json") {
+            Ok(content) => content,
+            Err(_) => {
+                println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
+                return Ok(Some(
+                    env::current_dir().unwrap().to_string_lossy().to_string()
+                        + "/node_modules/",  //or  /node_modules/@ts-macro/typescript-plugin/
+                ));
+            }
+        };
+
+        let package_json: PackageJson = serde_json::from_str(&package_json_content)
             .map_err(|err| format!("failed to parse package.json: {err}"))?;
 
         let has_local_plugin = package_json
@@ -154,12 +166,13 @@ impl TsmExtension {
         if has_local_plugin {
             println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
             return Ok(None);
+        } else {
+            println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
+            return Ok(Some(
+                env::current_dir().unwrap().to_string_lossy().to_string()
+                    + "/node_modules/",   
+            ));
         }
-
-        println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
-        Ok(Some(
-            env::current_dir().unwrap().to_string_lossy().to_string(),
-        ))
     }
 }
 
