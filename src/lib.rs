@@ -4,7 +4,7 @@ use std::{env, fs};
 use serde::Deserialize;
 use zed_extension_api::serde_json::json;
 use zed_extension_api::settings::LspSettings;
-use zed_extension_api::{self as zed, serde_json, Result};
+use zed_extension_api::{self as zed, Result, serde_json};
 
 const SERVER_PATH: &str = "node_modules/@ts-macro/language-server/dist/index.js";
 const PACKAGE_NAME: &str = "@ts-macro/language-server";
@@ -139,27 +139,36 @@ impl TsmExtension {
         Ok(())
     }
 
-    fn get_ts_plugin_root_path(&self, worktree: &zed::Worktree) -> Result<Option<String>> {
-        let package_json = worktree.read_text_file("package.json")?;
-        let package_json: PackageJson = serde_json::from_str(&package_json)
-            .map_err(|err| format!("failed to parse package.json: {err}"))?;
+    fn get_ts_plugin_root_path(&self, worktree: &zed::Worktree) -> String {
+        let check_local_installation = || -> Result<bool> {
+            let package_json = worktree.read_text_file("package.json")?;
+            let package_json: PackageJson = serde_json::from_str(&package_json)
+                .map_err(|err| format!("failed to parse package.json: {err}"))?;
 
-        let has_local_plugin = package_json
-            .dev_dependencies
-            .contains_key(TS_PLUGIN_PACKAGE_NAME)
-            || package_json
-                .dependencies
-                .contains_key(TS_PLUGIN_PACKAGE_NAME);
+            Ok(package_json
+                .dev_dependencies
+                .contains_key(TS_PLUGIN_PACKAGE_NAME)
+                || package_json
+                    .dependencies
+                    .contains_key(TS_PLUGIN_PACKAGE_NAME))
+        };
 
-        if has_local_plugin {
-            println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
-            return Ok(None);
+        match check_local_installation() {
+            Ok(true) => {
+                println!("Using local installation of {TS_PLUGIN_PACKAGE_NAME}");
+                worktree.root_path()
+            }
+            Ok(false) => {
+                println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
+                env::current_dir().unwrap().to_string_lossy().to_string()
+            }
+            Err(err) => {
+                println!(
+                    "Failed to check local installation of {TS_PLUGIN_PACKAGE_NAME} ({err}), using global installation"
+                );
+                env::current_dir().unwrap().to_string_lossy().to_string()
+            }
         }
-
-        println!("Using global installation of {TS_PLUGIN_PACKAGE_NAME}");
-        Ok(Some(
-            env::current_dir().unwrap().to_string_lossy().to_string(),
-        ))
     }
 }
 
@@ -219,7 +228,7 @@ impl zed::Extension for TsmExtension {
             "typescript-language-server" => Ok(Some(serde_json::json!({
                 "plugins": [{
                     "name": TS_PLUGIN_PACKAGE_NAME,
-                    "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                    "location": self.get_ts_plugin_root_path(worktree),
                 }],
             }))),
             _ => Ok(None),
@@ -238,7 +247,7 @@ impl zed::Extension for TsmExtension {
                     "tsserver": {
                         "globalPlugins": [{
                             "name": TS_PLUGIN_PACKAGE_NAME,
-                            "location": self.get_ts_plugin_root_path(worktree)?.unwrap_or_else(|| worktree.root_path()),
+                            "location": self.get_ts_plugin_root_path(worktree),
                             "enableForWorkspaceTypeScriptVersions": true,
                         }]
                     }
@@ -259,7 +268,7 @@ mod zed_ext {
     ///
     /// This is a workaround for https://github.com/bytecodealliance/wasmtime/issues/10415.
     pub fn sanitize_windows_path(path: std::path::PathBuf) -> std::path::PathBuf {
-        use zed_extension_api::{current_platform, Os};
+        use zed_extension_api::{Os, current_platform};
 
         let (os, _arch) = current_platform();
         match os {
