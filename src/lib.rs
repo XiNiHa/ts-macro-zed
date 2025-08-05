@@ -6,7 +6,7 @@ use zed_extension_api::serde_json::json;
 use zed_extension_api::settings::LspSettings;
 use zed_extension_api::{self as zed, Result, serde_json};
 
-const SERVER_PATH: &str = "node_modules/@ts-macro/language-server/dist/index.js";
+const SERVER_PATH: &str = "node_modules/@ts-macro/language-server/dist/index.cjs";
 const PACKAGE_NAME: &str = "@ts-macro/language-server";
 
 const TYPESCRIPT_PACKAGE_NAME: &str = "typescript";
@@ -50,8 +50,7 @@ impl TsmExtension {
             language_server_id,
             &zed::LanguageServerInstallationStatus::CheckingForUpdate,
         );
-        // let version = zed::npm_package_latest_version(PACKAGE_NAME)?;
-        let version = "0.2.8".to_string();
+        let version = zed::npm_package_latest_version(PACKAGE_NAME)?;
 
         if !server_exists
             || zed::npm_package_installed_version(PACKAGE_NAME)?.as_ref() != Some(&version)
