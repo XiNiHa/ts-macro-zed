@@ -1,7 +1,7 @@
 id = "ts-macro"
 name = "TS Macro"
 description = "TS Macro support for Zed"
-version = "0.0.0"
+version = "0.1.0"
 schema_version = 1
 authors = ["XiNiHa <me@xiniha.dev>"]
 repository = "https://github.com/XiNiHa/ts-macro-zed"
